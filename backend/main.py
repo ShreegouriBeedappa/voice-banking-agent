@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from amount_parser import parse_amount
 
 app = FastAPI(title="Voice Banking Agent")
 
@@ -31,6 +32,7 @@ def health_check():
 @app.post("/chat")
 def chat(request: ChatRequest):
     text = request.message.lower().strip()
+    amount = parse_amount(text)
 
     if text in ["hello", "hi", "hey"]:
         reply = "Hello! Welcome to Voice Banking. How can I help you today?"
@@ -65,4 +67,7 @@ def chat(request: ChatRequest):
             "You can ask about balances, transfers, transactions, or cards."
         )
 
-    return {"reply": reply}
+    return {
+    "reply": reply,
+    "detected_amount": amount
+}
