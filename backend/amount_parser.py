@@ -14,12 +14,17 @@ ONES = {
     "assi": 80, "nabbe": 90,
 }
 
+
 def parse_amount(text: str):
     text = text.lower().replace(",", "").strip()
 
+    # Ignore recipient details after "to"
+    amount_text = re.split(r"\bto\b", text, maxsplit=1)[0].strip()
+
+    # Numeric amounts, such as 750 or 750.50
     match = re.search(
         r"\b(\d+(?:\.\d{1,2})?)\s*(?:rupees?|rs\.?|inr)?\b",
-        text,
+        amount_text,
     )
     if match:
         value = float(match.group(1))
@@ -36,16 +41,16 @@ def parse_amount(text: str):
     }
 
     for phrase, value in special.items():
-        if phrase in text:
+        if phrase in amount_text:
             return value
 
-    words = re.findall(r"[a-z]+", text)
+    words = re.findall(r"[a-z]+", amount_text)
     total = 0
     current = 0
 
     ignored = {
         "transfer", "send", "money", "pay", "please",
-        "to", "the", "rupee", "rupees", "rs", "inr"
+        "rupee", "rupees", "rs", "inr",
     }
 
     for word in words:
