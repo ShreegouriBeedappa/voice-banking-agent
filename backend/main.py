@@ -11,8 +11,14 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
         "http://localhost:5176",
         "http://127.0.0.1:5176",
+        "http://localhost:5177",
+        "http://127.0.0.1:5177",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -26,7 +32,9 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def home():
-    return {"message": "Voice Banking Agent backend is running!"}
+    return {
+        "message": "Voice Banking Agent backend is running!"
+    }
 
 
 @app.get("/health")
@@ -39,37 +47,59 @@ def chat(request: ChatRequest):
     text = request.message.lower().strip()
     amount = parse_amount(text)
 
-    is_transfer = (
-        "transfer" in text
-        or "send money" in text
-        or "send " in text
-    )
+    # Greeting detection
+    greetings = [
+        "hello",
+        "hi",
+        "hey",
+        "namaste",
+        "namaskar",
+    ]
 
-    if text in ["hello", "hi", "hey"]:
+    if (
+        text in greetings
+        or any(
+            text.startswith(greeting + " ")
+            for greeting in greetings
+        )
+        or text.startswith("hello,")
+        or text.startswith("hi,")
+        or text.startswith("hey,")
+    ):
         reply = (
             "Hello! Welcome to Voice Banking. "
+            "I can help with balance enquiries, transfers, "
+            "transaction history, and card support. "
             "How can I help you today?"
         )
 
+    # Balance enquiry
     elif "balance" in text:
         reply = (
             "I can help with balance enquiries. "
             "This demo is not connected to a real bank account."
         )
 
+    # Transaction history
     elif "transaction" in text or "history" in text:
         reply = (
             "For transaction history, please use your bank's "
             "official app. This demo has no access to real transactions."
         )
 
+    # Card support
     elif "card" in text:
         reply = (
             "For card-related help, use your bank's official "
             "app or customer support."
         )
 
-    elif is_transfer:
+    # Transfer safety: no real transfers are performed
+    elif (
+        "transfer" in text
+        or "send money" in text
+        or "send " in text
+    ):
         if amount is None:
             reply = (
                 "This demo cannot transfer money. "
@@ -105,16 +135,19 @@ def chat(request: ChatRequest):
                     "No money has been transferred."
                 )
 
+    # General help
     elif "help" in text:
         reply = (
             "You can ask me about balance enquiries, transfers, "
             "transactions, or card support. This is a demo assistant."
         )
 
+    # Default response
     else:
         reply = (
             "I'm your Voice Banking demo assistant. "
-            "You can ask about balances, transfers, transactions, or cards."
+            "You can ask about balances, transfers, transactions, "
+            "or cards."
         )
 
     return {

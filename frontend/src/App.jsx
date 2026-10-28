@@ -11,9 +11,10 @@ function App() {
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
 
   async function sendMessage(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
     const text = message.trim();
 
@@ -65,7 +66,9 @@ function App() {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert("Voice input is not supported. Please use Google Chrome.");
+      alert(
+        "Voice recognition is not supported in this browser. Please try an updated version of Google Chrome."
+      );
       return;
     }
 
@@ -74,17 +77,55 @@ function App() {
     recognition.lang = "en-IN";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setListening(true);
+      console.log("Voice recognition started. Please speak.");
+    };
 
     recognition.onresult = (event) => {
-      setMessage(event.results[0][0].transcript);
+      const transcript = event.results[0][0].transcript;
+      console.log("Recognized speech:", transcript);
+      setMessage(transcript);
     };
 
     recognition.onerror = (event) => {
       console.error("Voice input error:", event.error);
-      alert("Voice input failed. Please try again.");
+
+      const errors = {
+        "not-allowed":
+          "Microphone access was denied. Check your browser permissions.",
+        "service-not-allowed":
+          "The browser's speech recognition service is blocked.",
+        network:
+          "Speech recognition could not connect to its service. Check your internet connection and try again.",
+        "no-speech":
+          "No speech was detected. Please speak closer to your microphone.",
+        "audio-capture":
+          "No microphone was detected. Check your microphone connection.",
+        aborted:
+          "Voice recognition was interrupted. Please try again.",
+      };
+
+      alert(
+        errors[event.error] ||
+          `Voice input failed: ${event.error}. Please try again.`
+      );
     };
 
-    recognition.start();
+    recognition.onend = () => {
+      setListening(false);
+      console.log("Voice recognition ended.");
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      setListening(false);
+      console.error("Could not start voice recognition:", error);
+      alert("Could not start voice input. Please try again.");
+    }
   }
 
   return (
@@ -119,9 +160,7 @@ function App() {
               key={index}
             >
               <span className="message-label">
-                {item.role === "user"
-                  ? "You"
-                  : "Banking Assistant"}
+                {item.role === "user" ? "You" : "Banking Assistant"}
               </span>
 
               <p>{item.text}</p>
@@ -140,14 +179,17 @@ function App() {
             onClick={startVoiceInput}
             aria-label="Use voice input"
             title="Speak your message"
+            disabled={loading || listening}
           >
-            🎙️
+            {listening ? "🔴" : "🎙️"}
           </button>
 
           <input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask about banking..."
+            placeholder={
+              listening ? "Listening... speak now" : "Ask about banking..."
+            }
             aria-label="Your message"
             disabled={loading}
           />
@@ -169,6 +211,5 @@ function App() {
     </main>
   );
 }
-
 
 export default App;
