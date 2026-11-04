@@ -10,28 +10,87 @@ function App() {
       text: "Hello! Welcome to Voice Banking. How can I help you today?",
     },
   ]);
+
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [challenge, setChallenge] = useState("");
+  const [challengePassed, setChallengePassed] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
 
+  // Speak assistant messages.
+  function speakReply(text) {
+    if (!("speechSynthesis" in window) || !voiceEnabled) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = "en-IN";
+    speech.rate = 0.95;
+    speech.pitch = 1;
+    speech.volume = 1;
+
+    window.speechSynthesis.speak(speech);
+  }
+
+  // Enable voice using a direct button click.
+  function enableVoice() {
+    if (!("speechSynthesis" in window)) {
+      alert("Text-to-speech is not supported in this browser.");
+      return;
+    }
+
+    setVoiceEnabled(true);
+
+    window.speechSynthesis.cancel();
+
+    const speech = new SpeechSynthesisUtterance(
+      "Voice replies are now enabled."
+    );
+
+    speech.lang = "en-IN";
+    speech.rate = 0.95;
+    speech.volume = 1;
+
+    window.speechSynthesis.speak(speech);
+  }
+
+  // Disable assistant voice.
+  function disableVoice() {
+    window.speechSynthesis.cancel();
+    setVoiceEnabled(false);
+  }
+
+  // Send a message to FastAPI.
   async function sendMessage(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
 
     const text = message.trim();
 
-    if (!text || loading) return;
+    if (!text || loading || challenge) {
+      return;
+    }
 
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text },
+    ]);
+
     setMessage("");
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: text }),
-      });
+      const response = await fetch(
+        "http://127.0.0.1:8000/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: text }),
+        }
+      );
 
       const data = await response.json();
 
@@ -39,35 +98,67 @@ function App() {
         throw new Error(data.detail || "Request failed");
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: data.reply || "Sorry, I couldn't understand that.",
-        },
-      ]);
-    } catch (error) {
-      console.error("Chat API error:", error);
+      const reply =
+        data.reply || "Sorry, I couldn't understand that.";
 
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          text: "Unable to connect to the banking service. Please check that the backend is running.",
-        },
+        { role: "assistant", text: reply },
       ]);
+
+      speakReply(reply);
+    } catch (error) {
+      console.error("Chat API error:", error);
+
+      const errorMessage =
+        "Unable to connect to the banking service. Please check the backend.";
+
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: errorMessage },
+      ]);
+
+      speakReply(errorMessage);
     } finally {
       setLoading(false);
     }
   }
 
+  // Start a random phrase challenge.
+  function startLivenessChallenge() {
+    const phrases = [
+      "My voice is my choice",
+      "I am speaking now",
+      "Today is a good day",
+    ];
+
+    const selectedPhrase =
+      phrases[Math.floor(Math.random() * phrases.length)];
+
+    setChallenge(selectedPhrase);
+    setChallengePassed(false);
+    setMessage("");
+
+    const reply =
+      `Please speak this challenge phrase: ${selectedPhrase}`;
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", text: reply },
+    ]);
+
+    speakReply(reply);
+  }
+
+  // Start microphone recognition.
   function startVoiceInput() {
     const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       alert(
-        "Voice recognition is not supported in this browser. Please try an updated version of Google Chrome."
+        "Voice recognition is not supported. Please use an updated version of Google Chrome."
       );
       return;
     }
@@ -81,50 +172,75 @@ function App() {
 
     recognition.onstart = () => {
       setListening(true);
-      console.log("Voice recognition started. Please speak.");
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log("Recognized speech:", transcript);
+      const transcript =
+        event.results[0][0].transcript.trim();
+
+      // Check challenge phrase if a challenge is active.
+      if (challenge) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", text: transcript },
+        ]);
+
+        const spoken = transcript.toLowerCase();
+        const expected = challenge.toLowerCase();
+
+        if (spoken === expected) {
+          setChallengePassed(true);
+          setChallenge("");
+
+          const reply =
+            "Challenge phrase matched. This demo challenge is complete.";
+
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: reply },
+          ]);
+
+          speakReply(reply);
+        } else {
+          const reply =
+            "The phrase did not match. Please try the challenge again.";
+
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", text: reply },
+          ]);
+
+          speakReply(reply);
+        }
+
+        return;
+      }
+
+      // Normal voice input goes into the message box.
       setMessage(transcript);
     };
 
     recognition.onerror = (event) => {
-      console.error("Voice input error:", event.error);
+      console.error("Voice recognition error:", event.error);
 
-      const errors = {
-        "not-allowed":
-          "Microphone access was denied. Check your browser permissions.",
-        "service-not-allowed":
-          "The browser's speech recognition service is blocked.",
-        network:
-          "Speech recognition could not connect to its service. Check your internet connection and try again.",
-        "no-speech":
-          "No speech was detected. Please speak closer to your microphone.",
-        "audio-capture":
-          "No microphone was detected. Check your microphone connection.",
-        aborted:
-          "Voice recognition was interrupted. Please try again.",
-      };
-
-      alert(
-        errors[event.error] ||
-          `Voice input failed: ${event.error}. Please try again.`
-      );
+      if (event.error !== "no-speech") {
+        alert(
+          "Voice input failed: " +
+            event.error +
+            ". Please try typing."
+        );
+      }
     };
 
     recognition.onend = () => {
       setListening(false);
-      console.log("Voice recognition ended.");
     };
 
     try {
       recognition.start();
     } catch (error) {
       setListening(false);
-      console.error("Could not start voice recognition:", error);
-      alert("Could not start voice input. Please try again.");
+      console.error("Could not start voice input:", error);
     }
   }
 
@@ -160,7 +276,9 @@ function App() {
               key={index}
             >
               <span className="message-label">
-                {item.role === "user" ? "You" : "Banking Assistant"}
+                {item.role === "user"
+                  ? "You"
+                  : "Banking Assistant"}
               </span>
 
               <p>{item.text}</p>
@@ -177,9 +295,9 @@ function App() {
             type="button"
             className="voice-button"
             onClick={startVoiceInput}
+            disabled={loading || listening}
             aria-label="Use voice input"
             title="Speak your message"
-            disabled={loading || listening}
           >
             {listening ? "🔴" : "🎙️"}
           </button>
@@ -188,24 +306,68 @@ function App() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={
-              listening ? "Listening... speak now" : "Ask about banking..."
+              listening
+                ? "Listening... speak now"
+                : "Ask about banking..."
             }
             aria-label="Your message"
-            disabled={loading}
+            disabled={loading || Boolean(challenge)}
           />
 
           <button
             className="send-button"
             type="submit"
-            disabled={loading || !message.trim()}
+            disabled={
+              loading || !message.trim() || Boolean(challenge)
+            }
           >
             {loading ? "Sending..." : "Send"}
           </button>
         </form>
 
+        <div className="challenge-section">
+          <button
+            type="button"
+            className="send-button"
+            onClick={startLivenessChallenge}
+            disabled={listening || loading}
+          >
+            Start Voice Challenge
+          </button>
+
+          {challengePassed && (
+            <p>Voice challenge completed for this demo.</p>
+          )}
+
+          <p className="disclaimer">
+            Demo challenge only. This does not prove that a
+            voice is live or detect replayed or synthetic audio.
+          </p>
+        </div>
+
+        <div className="challenge-section">
+          {voiceEnabled ? (
+            <button
+              type="button"
+              className="send-button"
+              onClick={disableVoice}
+            >
+              Turn Voice Replies Off
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="send-button"
+              onClick={enableVoice}
+            >
+              Enable Assistant Voice
+            </button>
+          )}
+        </div>
+
         <p className="disclaimer">
-          Demo only. Never enter your PIN, password, or real
-          banking details.
+          Demo only. Never enter your real PIN, password,
+          or banking details.
         </p>
       </section>
     </main>
