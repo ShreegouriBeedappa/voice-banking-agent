@@ -82,7 +82,7 @@ function App() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/chat",
+        "https://voice-banking-agent-1.onrender.com/chat",
         {
           method: "POST",
           headers: {

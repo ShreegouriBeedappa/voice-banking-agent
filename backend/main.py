@@ -11,14 +11,19 @@ from amount_parser import parse_amount
 
 app = FastAPI(title="Voice Banking Agent")
 
+# Allow the deployed Netlify frontend and local development.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        f"http://localhost:{port}"
-        for port in range(5173, 5179)
-    ] + [
-        f"http://127.0.0.1:{port}"
-        for port in range(5173, 5179)
+        "https://luminous-sopapillas-2c5321.netlify.app",
+        *[
+            f"http://localhost:{port}"
+            for port in range(5173, 5179)
+        ],
+        *[
+            f"http://127.0.0.1:{port}"
+            for port in range(5173, 5179)
+        ],
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -41,14 +46,14 @@ DEMO_TRANSFER_LIMIT = 50000
 def extract_recipient(text: str):
     text = text.lower().strip()
 
-    # Remove common Hinglish words before recipient's name
+    # Remove common Hinglish words before recipient's name.
     text = re.sub(
         r"^(?:mujhe|mujhko|main|please)\s+",
         "",
         text
     )
 
-    # English: Send 500 rupees to Rahul
+    # English: Send 500 rupees to Rahul.
     match = re.search(
         r"\b(?:to|for)\s+([a-z][a-z.'-]*(?:\s+[a-z][a-z.'-]*){0,2})\s*$",
         text,
@@ -57,7 +62,7 @@ def extract_recipient(text: str):
     if match:
         return match.group(1).strip()
 
-    # Hinglish: Rahul ko 500 rupaye bhejo
+    # Hinglish: Rahul ko 500 rupaye bhejo.
     match = re.search(
         r"^([a-z][a-z.'-]*(?:\s+[a-z][a-z.'-]*){0,2})\s+ko\b",
         text,
