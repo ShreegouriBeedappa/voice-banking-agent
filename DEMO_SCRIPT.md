@@ -1,4 +1,4 @@
-# Voice Banking Agent - Demo Script
+﻿# Voice Banking Agent - Demo Script
 
 ## Demo Setup
 
@@ -34,3 +34,4 @@
 - The voice challenge checks the spoken phrase but does not provide reliable speaker identity verification or liveness detection.
 - Voice spoofing and replay-attack detection are not fully implemented.
 - Transaction data is maintained by the demo backend and may reset when the server restarts.
+
